@@ -1,1 +1,358 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaLiga Manager 2026/27</title>
+<style>
+* { box-sizing: border-box; }
+:root {
+  --pl-navy:#071b33;
+  --pl-purple:#0b2345;
+  --pl-pink:#ff4b44;
+  --pl-green:#00c2a8;
+  --pl-cyan:#21d4fd;
+}
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f3f4f8;
+  text-align: center;
+  margin: 0;
+  color: #19131f;
+}
+h1 {
+  background: linear-gradient(135deg, var(--pl-purple), #240044 62%, #11001d);
+  color: white;
+  padding: 16px 12px;
+  margin: 0;
+  font-size: clamp(24px, 5vw, 34px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  border-bottom: 4px solid var(--pl-green);
+}
+.league-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  background: white;
+  border-radius: 14px;
+  padding: 7px;
+}
+.subtitle { margin: 12px 0 18px; color:#5f5967; }
+.controls {
+  display:flex; justify-content:center; align-items:center;
+  gap:10px; flex-wrap:wrap; margin-bottom:10px;
+}
+.controls label { font-weight:bold; }
+select,input { border:1px solid #d0cad7; border-radius:7px; background:white; }
+#matchday { padding:9px 12px; font-size:15px; }
+.match {
+  background:white; margin:12px auto; padding:18px;
+  width:min(780px, calc(100% - 28px)); border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  gap:10px; min-height:82px; flex-wrap:wrap;
+  box-shadow:0 3px 14px rgba(55,0,60,.10);
+  border-top:3px solid rgba(55,0,60,.08);
+}
+.match select,.match input { padding:9px; font-size:14px; }
+.match select { min-width:165px; }
+.match input { width:58px; text-align:center; font-size:18px; font-weight:bold; }
+.match img { width:46px; height:46px; object-fit:contain; flex-shrink:0; }
+.score-separator { font-size:20px; font-weight:bold; }
+button {
+  padding:8px 13px; border:none; background:var(--pl-purple); color:white;
+  border-radius:7px; cursor:pointer; font-size:14px;
+}
+button:hover { background:#26002a; }
+button.delete { background:#d8324a; }
+button.delete:hover { background:#b5263b; }
+.add-button { margin:5px 0 14px; font-size:15px; }
+h2 { margin-top:25px; }
+.table-wrapper { overflow-x:auto; padding:0 10px 30px; }
+table {
+  margin:12px auto; border-collapse:collapse; width:min(820px,100%);
+  background:white; box-shadow:0 3px 14px rgba(55,0,60,.10);
+  border-radius:12px; overflow:hidden;
+}
+th,td { padding:9px 8px; border-bottom:1px solid #ece8ef; }
+th { background:var(--pl-purple); color:white; }
+td:first-child,th:first-child { width:46px; text-align:center; }
+td.team-cell { text-align:left; min-width:210px; font-weight:600; }
+td img { width:28px; height:28px; object-fit:contain; vertical-align:middle; margin-right:7px; }
+tbody tr:nth-child(-n+4) { background:#e8fbff; }
+tbody tr:nth-child(5) { background:#eefbe9; }
+tbody tr:nth-last-child(-n+3) { background:#fde9ec; }
+.legend {
+  width:min(820px, calc(100% - 30px)); margin:0 auto 10px;
+  font-size:13px; color:#5f5967; text-align:left;
+}
+.empty { margin:25px auto; color:#6e6775; }
+.logo-fallback {
+  display:inline-flex; align-items:center; justify-content:center;
+  background:linear-gradient(135deg,#eee8f3,#fff); color:var(--pl-purple);
+  border:1px solid #d7cfdd; border-radius:50%; font-weight:800;
+}
+@media (max-width:650px) {
+  .match { gap:7px; padding:14px 8px; }
+  .match select { min-width:125px; max-width:155px; }
+  .match img { width:38px; height:38px; }
+  th,td { padding:8px 5px; font-size:13px; }
+  td.team-cell { min-width:175px; }
+}
+</style>
+</head>
+<body>
+<h1>
+  <img class="league-logo" id="leagueLogo" alt="LaLiga">
+  <span>LaLiga Manager 2026/27</span>
+</h1>
+<p class="subtitle">Dein eigener Ergebnis- und Tabellenrechner</p>
+<div class="controls">
+  <label for="matchday">Spieltag:</label>
+  <select id="matchday" onchange="changeMatchday()"></select>
+</div>
+<div id="matches"></div>
+<button class="add-button" onclick="addMatch()">➕ Spiel hinzufügen</button>
+<h2>📊 Tabelle</h2>
+<div class="legend">
+  🔵 Platz 1–4: Champions League &nbsp; 🟢 Platz 5: Europa League &nbsp; 🔴 Platz 18–20: Abstieg
+</div>
+<div class="table-wrapper">
+<table>
+<thead><tr>
+  <th>Pl.</th><th>Team</th><th>Sp.</th><th>Pkt.</th><th>Tore</th><th>Diff.</th>
+</tr></thead>
+<tbody id="table"></tbody>
+</table>
+</div>
+<script>
+const STORAGE_KEY = "laliga-2026-27";
+const CURRENT_DAY_KEY = "laliga-current-matchday-2026-27";
 
+/*
+  Logo-Strategie LaLiga 2026/27:
+  1) Hochauflösendes Vereinswappen von FootyLogos
+  2) Google-Favicon der offiziellen Vereinsseite
+  3) DuckDuckGo-Favicon der offiziellen Vereinsseite
+  4) Direktes Favicon der Vereinsseite
+  5) FEST IN DIESER HTML-DATEI eingebettetes, clubspezifisches SVG-Fallback
+
+  Ergebnis: Es erscheint niemals ein kaputtes Bildsymbol. Wenn eine externe
+  Quelle ausfällt oder blockiert wird, bleibt immer ein lokales Team-Badge
+  sichtbar. Für maximale Ausfallsicherheit gibt es keine generische
+  "No Image"-Grafik mehr.
+*/
+const teams = [
+  {name:"Athletic Club", domain:"athletic-club.eus", abbr:"ATH", slug:"athletic-bilbao", c1:"#EE2523", c2:"#FFFFFF"},
+  {name:"Atlético de Madrid", domain:"atleticodemadrid.com", abbr:"ATM", slug:"atletico-madrid", c1:"#CB3524", c2:"#272E61"},
+  {name:"CA Osasuna", domain:"osasuna.es", abbr:"OSA", slug:"osasuna", c1:"#D91A2A", c2:"#0A3472"},
+  {name:"Celta", domain:"rccelta.es", abbr:"CEL", slug:"celta-vigo", c1:"#8AC3EE", c2:"#FFFFFF"},
+  {name:"Deportivo Alavés", domain:"deportivoalaves.com", abbr:"ALA", slug:"deportivo-alaves", c1:"#0055A5", c2:"#FFFFFF"},
+  {name:"Elche CF", domain:"elchecf.es", abbr:"ELC", slug:"elche", c1:"#FFFFFF", c2:"#16864B"},
+  {name:"FC Barcelona", domain:"fcbarcelona.com", abbr:"BAR", slug:"barcelona", c1:"#004D98", c2:"#A50044"},
+  {name:"Getafe CF", domain:"getafecf.com", abbr:"GET", slug:"getafe", c1:"#005999", c2:"#FFFFFF"},
+  {name:"Levante UD", domain:"levanteud.com", abbr:"LEV", slug:"levante", c1:"#005CA9", c2:"#B51F2A"},
+  {name:"Málaga CF", domain:"malagacf.com", abbr:"MGA", slug:"malaga", c1:"#6CC4E8", c2:"#FFFFFF"},
+  {name:"R. Racing Club", domain:"realracingclub.es", abbr:"RAC", slug:"racing-santander", c1:"#138A49", c2:"#FFFFFF"},
+  {name:"Rayo Vallecano", domain:"rayovallecano.es", abbr:"RAY", slug:"rayo-vallecano", c1:"#FFFFFF", c2:"#E21D2D"},
+  {name:"RC Deportivo", domain:"rcdeportivo.es", abbr:"DEP", slug:"deportivo-la-coruna", c1:"#0067B1", c2:"#FFFFFF"},
+  {name:"RCD Espanyol de Barcelona", domain:"rcdespanyol.com", abbr:"ESP", slug:"espanyol", c1:"#007FC8", c2:"#FFFFFF"},
+  {name:"Real Betis", domain:"realbetisbalompie.es", abbr:"BET", slug:"real-betis", c1:"#00954C", c2:"#FFFFFF"},
+  {name:"Real Madrid", domain:"realmadrid.com", abbr:"RMA", slug:"real-madrid", c1:"#FFFFFF", c2:"#FEBE10"},
+  {name:"Real Sociedad", domain:"realsociedad.eus", abbr:"RSO", slug:"real-sociedad", c1:"#0067B1", c2:"#FFFFFF"},
+  {name:"Sevilla FC", domain:"sevillafc.es", abbr:"SEV", slug:"sevilla", c1:"#FFFFFF", c2:"#D71920"},
+  {name:"Valencia CF", domain:"valenciacf.com", abbr:"VCF", slug:"valencia", c1:"#FFFFFF", c2:"#F58220"},
+  {name:"Villarreal CF", domain:"villarrealcf.es", abbr:"VIL", slug:"villarreal", c1:"#FFE667", c2:"#005187"}
+];
+
+function xmlEscape(value) {
+  return String(value).replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch]));
+}
+
+function svgFallback(team, size=128) {
+  if (!team) team = {abbr:"LL", name:"LaLiga", c1:"#0b2345", c2:"#ff4b44"};
+  const abbr = xmlEscape(String(team.abbr || "LL").slice(0,4).toUpperCase());
+  const name = xmlEscape(team.name || "LaLiga");
+  const c1 = team.c1 || "#0b2345";
+  const c2 = team.c2 || "#ffffff";
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 128 128">
+    <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs>
+    <path d="M64 5 112 22v38c0 30-18 50-48 63C34 110 16 90 16 60V22Z" fill="url(#g)" stroke="#fff" stroke-width="5"/>
+    <path d="M64 13 104 27v33c0 24-13 41-40 54-27-13-40-30-40-54V27Z" fill="none" stroke="rgba(0,0,0,.25)" stroke-width="3"/>
+    <circle cx="64" cy="57" r="29" fill="rgba(255,255,255,.92)"/>
+    <text x="64" y="65" text-anchor="middle" font-family="Arial,sans-serif" font-size="25" font-weight="800" fill="#1b1b1b">${abbr}</text>
+    <title>${name}</title>
+  </svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+function logoSources(team) {
+  return [
+    `https://www.footylogos.com/downloads/logo/${encodeURIComponent(team.slug)}-logo-footylogos.png`,
+    `https://www.google.com/s2/favicons?domain=${encodeURIComponent(team.domain)}&sz=128`,
+    `https://icons.duckduckgo.com/ip3/${encodeURIComponent(team.domain)}.ico`,
+    `https://${team.domain}/favicon.ico`,
+    svgFallback(team)
+  ];
+}
+
+function leagueLogoSources() {
+  const league = {abbr:"LL", name:"LaLiga", c1:"#0b2345", c2:"#ff4b44"};
+  return [
+    "https://www.google.com/s2/favicons?domain=laliga.com&sz=128",
+    "https://icons.duckduckgo.com/ip3/laliga.com.ico",
+    "https://www.laliga.com/favicon.ico",
+    svgFallback(league)
+  ];
+}
+
+function setImageWithFallback(img, sources, index=0) {
+  img.onerror = null;
+  img.dataset.logoIndex = String(index);
+  img.dataset.logoSources = JSON.stringify(sources);
+  img.onerror = function() {
+    const all = JSON.parse(this.dataset.logoSources || "[]");
+    const next = Number(this.dataset.logoIndex || "0") + 1;
+    if (next < all.length) {
+      this.dataset.logoIndex = String(next);
+      this.src = all[next];
+    } else {
+      this.onerror = null;
+    }
+  };
+  img.src = sources[index];
+}
+
+function getTeam(name) { return teams.find(t => t.name === name); }
+function applyTeamLogo(img, name) {
+  const team = getTeam(name);
+  const sources = team ? logoSources(team) : [svgFallback(null)];
+  img.alt = name || "Team";
+  setImageWithFallback(img, sources);
+}
+
+function teamOptions(selected) {
+  return teams.map(t => `<option value="${t.name}" ${t.name === selected ? "selected" : ""}>${t.name}</option>`).join("");
+}
+function loadData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function currentDay() { return document.getElementById("matchday").value; }
+function renderMatchdays() {
+  const select = document.getElementById("matchday");
+  let html = "";
+  for (let i=1;i<=38;i++) html += `<option value="${i}">Spieltag ${i}</option>`;
+  select.innerHTML = html;
+  const savedDay = localStorage.getItem(CURRENT_DAY_KEY);
+  if (savedDay && Number(savedDay)>=1 && Number(savedDay)<=38) select.value = savedDay;
+}
+function changeMatchday() {
+  localStorage.setItem(CURRENT_DAY_KEY,currentDay());
+  renderMatches(); renderTable();
+}
+function renderMatches() {
+  const data=loadData(); const day=currentDay(); const matches=data[day] || [];
+  if (!matches.length) {
+    document.getElementById("matches").innerHTML=`<div class="empty">Noch keine Spiele für Spieltag ${day} eingetragen.</div>`;
+    return;
+  }
+  let html="";
+  matches.forEach((m,i)=>{
+    html += `<div class="match">
+      <img id="logo1-${i}" alt="${m.team1}">
+      <select id="team1-${i}">${teamOptions(m.team1)}</select>
+      <input type="number" min="0" max="99" id="t1-${i}" value="${m.t1 ?? ""}" aria-label="Tore Heimteam">
+      <span class="score-separator">:</span>
+      <input type="number" min="0" max="99" id="t2-${i}" value="${m.t2 ?? ""}" aria-label="Tore Auswärtsteam">
+      <select id="team2-${i}">${teamOptions(m.team2)}</select>
+      <img id="logo2-${i}" alt="${m.team2}">
+      <button onclick="save(${i})">💾 Speichern</button>
+      <button class="delete" onclick="removeMatch(${i})">❌</button>
+    </div>`;
+  });
+  document.getElementById("matches").innerHTML=html;
+  matches.forEach((m,i)=>{
+    applyTeamLogo(document.getElementById(`logo1-${i}`),m.team1);
+    applyTeamLogo(document.getElementById(`logo2-${i}`),m.team2);
+  });
+  document.querySelectorAll(".match select, .match input").forEach(element=>{
+    element.addEventListener("change",saveAuto);
+    element.addEventListener("input",()=>{ if(element.tagName==="INPUT") saveAuto(); });
+  });
+}
+function saveAuto() {
+  const data=loadData(); const day=currentDay(); const matches=data[day] || [];
+  document.querySelectorAll(".match").forEach((el,i)=>{
+    if(!matches[i]) return;
+    matches[i].team1=document.getElementById(`team1-${i}`).value;
+    matches[i].team2=document.getElementById(`team2-${i}`).value;
+    matches[i].t1=document.getElementById(`t1-${i}`).value;
+    matches[i].t2=document.getElementById(`t2-${i}`).value;
+  });
+  data[day]=matches; saveData(data); refreshMatchLogos(); renderTable();
+}
+function refreshMatchLogos() {
+  document.querySelectorAll(".match").forEach((match,i)=>{
+    const team1=document.getElementById(`team1-${i}`)?.value;
+    const team2=document.getElementById(`team2-${i}`)?.value;
+    if(team1) applyTeamLogo(document.getElementById(`logo1-${i}`),team1);
+    if(team2) applyTeamLogo(document.getElementById(`logo2-${i}`),team2);
+  });
+}
+function addMatch() {
+  const data=loadData(); const day=currentDay(); if(!data[day]) data[day]=[];
+  const usedTeams=new Set(); data[day].forEach(m=>{usedTeams.add(m.team1);usedTeams.add(m.team2);});
+  const freeTeams=teams.filter(t=>!usedTeams.has(t.name));
+  data[day].push({team1:freeTeams[0]?.name || teams[0].name, team2:freeTeams[1]?.name || teams[1].name, t1:"", t2:""});
+  saveData(data); renderMatches();
+}
+function removeMatch(i) {
+  const data=loadData(); const day=currentDay(); if(!data[day]) return;
+  data[day].splice(i,1); saveData(data); renderMatches(); renderTable();
+}
+function save(){ saveAuto(); }
+function renderTable() {
+  const data=loadData(); const table={};
+  teams.forEach(t=>table[t.name]={played:0,points:0,goalsFor:0,goalsAgainst:0});
+  Object.values(data).forEach(day=>{
+    if(!Array.isArray(day)) return;
+    day.forEach(m=>{
+      if(m.t1==="" || m.t2==="" || !table[m.team1] || !table[m.team2] || m.team1===m.team2) return;
+      const t1=Number.parseInt(m.t1,10), t2=Number.parseInt(m.t2,10);
+      if(Number.isNaN(t1)||Number.isNaN(t2)||t1<0||t2<0) return;
+      table[m.team1].played++; table[m.team2].played++;
+      table[m.team1].goalsFor+=t1; table[m.team1].goalsAgainst+=t2;
+      table[m.team2].goalsFor+=t2; table[m.team2].goalsAgainst+=t1;
+      if(t1>t2) table[m.team1].points+=3;
+      else if(t2>t1) table[m.team2].points+=3;
+      else { table[m.team1].points++; table[m.team2].points++; }
+    });
+  });
+  const sorted=Object.entries(table).sort((a,b)=>{
+    const diffA=a[1].goalsFor-a[1].goalsAgainst, diffB=b[1].goalsFor-b[1].goalsAgainst;
+    return b[1].points-a[1].points || diffB-diffA || b[1].goalsFor-a[1].goalsFor || a[0].localeCompare(b[0],"de");
+  });
+  let html="";
+  sorted.forEach(([team,val],index)=>{
+    const diff=val.goalsFor-val.goalsAgainst; const diffText=diff>0?`+${diff}`:`${diff}`;
+    html += `<tr>
+      <td>${index+1}</td>
+      <td class="team-cell"><img id="table-logo-${index}" alt="${team}">${team}</td>
+      <td>${val.played}</td><td><strong>${val.points}</strong></td>
+      <td>${val.goalsFor}:${val.goalsAgainst}</td><td>${diffText}</td>
+    </tr>`;
+  });
+  document.getElementById("table").innerHTML=html;
+  sorted.forEach(([team],index)=>applyTeamLogo(document.getElementById(`table-logo-${index}`),team));
+}
+
+setImageWithFallback(document.getElementById("leagueLogo"),leagueLogoSources());
+renderMatchdays(); renderMatches(); renderTable();
+</script>
+</body>
+</html>
